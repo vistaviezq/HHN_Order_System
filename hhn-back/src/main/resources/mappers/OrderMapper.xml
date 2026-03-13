@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hhn.demo.repository.mapper.OrderMapper">
+
+    <resultMap id="orderMap" type="com.hhn.demo.entity.Order">
+
+        <id property="userId" column="user_id"/>
+        <id property="roomId" column="room_id"/>
+        <id property="orderDate" column="order_date"/>
+        <id property="productId" column="product_id"/>
+        <result property="name" column="name"/>
+        <result property="orderQuantity" column="order_quantity"/>
+        <result property="orderPrice" column="order_price"/>
+
+    </resultMap>
+
+    <resultMap id="userMap" type="com.hhn.demo.entity.User">
+
+        <id property="userId" column="user_id"/>
+        <id property="roomId" column="room_id"/>
+        <result property="checkinDate" column="checkin_date"/>
+        <result property="checkoutDate" column="checkout_date"/>
+        <result property="role" column="role"/>
+
+    </resultMap>
+
+    <select id="searchDetailOrderHost" resultMap="orderMap">
+        select
+            a.user_id,
+            a.room_id,
+            a.order_date,
+            a.product_id,
+            b.name,
+            a.order_quantity,
+            a.order_price
+        from
+            (select
+                    user_id,
+                    room_id,
+                    order_date,
+                    product_id,
+                    sum(order_quantity) as order_quantity,
+                    sum(order_price) as order_price
+            from hhn.`order`
+            where 1=1
+            and room_id = #{roomId}
+            and order_date between #{startDate} and #{endDate} and status = '1'
+            group by user_id, room_id, order_date, product_id) as a
+        left outer join hhn.product b
+        on (a.product_id = b.product_id)
+        order by
+        a.order_date, a.product_id
+    </select>
+
+    <select id="searchStayPeriodHost" resultMap="userMap">
+        SELECT
+            user_id,        room_id,
+            checkin_date,
+            checkout_date,
+            role
+        FROM hhn.user
+        WHERE room_id = #{roomId}
+        AND role = 'GUEST'
+        AND checkin_date &lt;= #{endDate}
+        AND checkout_date &gt;= #{startDate}
+        ORDER BY checkin_date ASC
+    </select>
+
+    <select id="searchDetailOrderCleaner" resultMap="orderMap">
+        select
+            a.product_id,
+            b.name,
+            a.user_id,
+            a.room_id,
+            a.order_date,
+            a.order_quantity
+        from
+            (select
+                    product_id,
+                    user_id,
+                    room_id,
+                    order_date,
+                    sum(order_quantity) as order_quantity
+            from hhn.`order`
+            where 1=1
+            and room_id = #{roomId}
+            and order_date = #{orderDate}
+            and status = '0'
+            group by product_id, user_id, room_id, order_date) as a
+        left outer join hhn.product b
+        on (a.product_id = b.product_id)
+        order by
+        a.product_id
+    </select>
+
+    <update id="updateOrderCleaner">
+        update
+            hhn.`order`
+        set
+            status = '1',
+            completed_at = now()
+        where user_id = #{userId}
+        and room_id = #{roomId}
+        and order_date = #{orderDate}
+        and product_id = #{productId}
+    </update>
+
+    <select id="searchDetailOrderGuest" resultMap="orderMap">
+        select
+            product_id,
+            name,
+            price,
+            0 as order_quantity
+        from hhn.product
+        order by
+            product_id
+    </select>
+
+    <insert id="insertOrderGuest">
+        insert into
+            hhn.`order` (user_id, room_id, order_date, product_id, order_quantity, order_price, status, create_date, update_date)
+        <foreach collection="orders" item="order" separator=" UNION ALL ">
+            select a.user_id, a.room_id, now(), #{order.productId}, #{order.orderQuantity}, (b.price * #{order.orderQuantity}), 0, now(), now()
+            from hhn.user a
+            left outer join hhn.product b
+              on (b.product_id = #{order.productId})
+            where 1=1
+            and a.checkin_date &lt;= now()
+            and a.checkout_date &gt; now()
+            and a.room_id = #{order.roomId}
+        </foreach>
+    </insert>
+
+</mapper>
