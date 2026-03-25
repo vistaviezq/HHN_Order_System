@@ -83,10 +83,10 @@ cd HHN_Order_System
 ### 2. 백엔드 실행 (Spring Boot)
 cd hhn-back
 # 빌드 및 실행 (Windows 기준)
-./gradlew bootRun
+./mvnw spring-boot:run
 
 ### 3. 프론트엔드 실행 (React)
 # 새로운 터미널을 열어 프로젝트 루트로 이동 후
 cd koreait-web4-react
 npm install
-npm start
+npm run dev
